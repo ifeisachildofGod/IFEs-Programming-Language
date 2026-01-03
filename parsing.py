@@ -2,6 +2,16 @@ from matplotlib.cbook import flatten
 from typing import Any, Callable
 from helpers import slice_text
 
+def _split_list(ls: list, sep: Any):
+    final_list = []
+    
+    for v in ls:
+        if v == sep:
+            final_list.append([])
+        else:
+            final_list[-1].append(v)
+    
+    return final_list
 
 def substitute_context(
         text: str,
@@ -146,47 +156,18 @@ def single_jump_substitution(code_lines: list[list[str]], seperator: str, info_s
                 
                 line_token[s_i : e_i] = [f"{info_store_name}?{index}"]
 
-def full_cover_substitution(code_lines: list[list[str]], seperator: str, info_store_name: str, scope: dict[str, list]):
-    # for line_token in code_lines:
-    #     if seperator in line_token:
-    #         indexes = []
+def full_cover_substitution(code_lines: list[list[str]], seperator: str, info_store_name: str, scope: dict[str, list], exception_tokens: list[str]):
+    for line_token in code_lines:
+        if seperator in line_token:
+            s_content = line_token[:line_token.index(seperator)]
+            e_content = line_token[len(line_token) - list(reversed(line_token)).index(seperator):]
             
-    #         sep_tracker = 1
-    #         start_i = None
-    #         for index, token in enumerate(line_token):
-    #             if start_i is None and token == seperator:
-    #                 assert index, "Error"
-                    
-    #                 start_i = index - 1
-                
-    #             if start_i is not None:
-    #                 sep_tracker -= ((token == seperator) * 2) - 1
-                    
-    #                 if sep_tracker not in (0, 1) or sep_tracker == 1 and index == len(line_token) - 1:
-    #                     assert sep_tracker >= 0, "Error"
-                        
-    #                     indexes.append((start_i, index + (sep_tracker == 1 and index == len(line_token) - 1)))
-    #                     start_i = None
-    #                     sep_tracker = 1
-                
-    #                 assert sep_tracker != 0 or index != len(line_token) - 1, "Error"
+            start_index = max(len(s_content) - list(reversed(s_content)).index(e) - 1 for e in exception_tokens if e in s_content) + 1
+            end_index = len(line_token) - list(reversed(line_token)).index(seperator) + min(e_content.index(e) for e in exception_tokens if e in s_content)
             
-    #         for s_i, e_i in reversed(indexes):
-    #             v = line_token[s_i : e_i].copy()
-                
-    #             for _ in range(v.count(seperator)):
-    #                 v.remove(seperator)
-                
-    #             if v not in scope[info_store_name]:
-    #                 index = len(scope[info_store_name])
-    #                 scope[info_store_name].append(v)
-    #             else:
-    #                 index = scope[info_store_name].index(v)
-                
-    #             line_token[s_i : e_i] = [f"{info_store_name}?{index}"]
-    pass
-
-
+            line_token[start_index : end_index] = [f"{info_store_name}?{len(scope[info_store_name])}"]
+            scope[info_store_name].append(_split_list(line_token[start_index : end_index], seperator))
+            
 def search(value: str, scope: dict | list | tuple | set):
     if isinstance(scope, dict):
         for k, v in scope.items():
