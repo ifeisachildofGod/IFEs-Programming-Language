@@ -321,7 +321,7 @@ def tokenize(code: str, scope: dict[str, list] | None = None):
     code = code.replace("`", "}")
     
     for i, s in enumerate(scope["@strings"]):
-        scope["@strings"][i] = (s,)
+        scope["@strings"][i] = (i, s)
     
     for operator in LANGUAGE_CONSTANTS["@operators"].values():
         for symbol in filter(lambda v: len(v.strip()) == 2, operator.values()):

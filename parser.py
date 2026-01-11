@@ -11,6 +11,15 @@ class ParsedCode:
     type: str
     data: dict[str, Any]
     data_type: "ParsedCode" = None
+    
+    def copy(self):
+        return ParsedCode(type=self.type, data=self.data, data_type=self.data_type)
+    
+    def update(self, other: "ParsedCode"):
+        self.type = other.type
+        self.data = other.data
+        self.data_type = other.data_type
+
 
 PARSED_CODE: list[ParsedCode] = []
 SCOPE: dict[str, list] | None = None
@@ -144,7 +153,7 @@ def parse_line(tokens: list[str], line: int, data: dict[str, dict[str, ParsedCod
     token_name_value = token_value(tokens[0]) if len(tokens) == 1 and is_token_type(tokens[0], "@name") else None
     token_ls_value = token_value(tokens[0]) if len(tokens) == 1 and is_token_type(tokens[0], "@loopstatments") else None
     token_number_value = token_value(tokens[0]) if len(tokens) == 1 and is_token_type(tokens[0], "@number") else None
-    token_string_value = token_value(tokens[0])[0] if len(tokens) == 1 and is_token_type(tokens[0], "@strings") else None
+    token_string_value = token_value(tokens[0])[1] if len(tokens) == 1 and is_token_type(tokens[0], "@strings") else None
     
     code_value = None
     
@@ -166,7 +175,7 @@ def parse_line(tokens: list[str], line: int, data: dict[str, dict[str, ParsedCod
                 else:
                     (_, name), _type = split_list(tokens, get_token_name(":"))
                     
-                    assert_token_type(name, "@name", error_msg="Error")
+                    assert_token_type(name, "@name", error_msg = f"Error on line {line}")
                     # assert not is_defined(name, data["variables"], data["constants"], data["classes"]), f"Error on line {line}"
                     
                     code_value = data["variables"][token_value(name)] = eat("DEFINITION", type=parse_line(_type, line, data), parent=parents)
@@ -174,7 +183,7 @@ def parse_line(tokens: list[str], line: int, data: dict[str, dict[str, ParsedCod
                 if a0 == "FUNC":
                     (_, name), _type = split_list(tokens, get_token_name(":"))
                     
-                    assert_token_type(name, "@name", error_msg="Error")
+                    assert_token_type(name, "@name", error_msg = f"Error on line {line}")
                     # assert not is_defined(name, data["variables"], data["constants"], data["classes"]), f"Error on line {line}"
                     
                     code_value = data["constants"][token_value(name)] = eat("C-DEFINITION", code_lines, data_type=parse_line(_type, line, data), parent=parents)
@@ -182,7 +191,7 @@ def parse_line(tokens: list[str], line: int, data: dict[str, dict[str, ParsedCod
                     definition, value = split_list(tokens, get_token_name("="))
                     (_, name), _type = split_list(definition, get_token_name(":"))
                     
-                    assert_token_type(name, "@name", error_msg="Error")
+                    assert_token_type(name, "@name", error_msg = f"Error on line {line}")
                     # assert not is_defined(name, data["variables"], data["constants"], data["classes"]), f"Error on line {line}"
                     
                     code_value = data["constants"][token_value(name)] = eat("C-DEFINITION", code_lines, data_type=parse_line(_type, line, data), parent=parents)
@@ -213,46 +222,74 @@ def parse_line(tokens: list[str], line: int, data: dict[str, dict[str, ParsedCod
                     
                     data["functions"][name] = code_value = eat("MAIN", code_lines, params=parse_line(parameters, line, sub_data, scope=param_scope, parents=parents + [(code_value, return_type)], a0="FUNC"), action=func_actions)
                 else:
-                    (_, name, parameters), part2 = split_list(tokens, get_token_name("=>"))
+                    if len(split_list(tokens, get_token_name("=>"))[0]) == 3:
+                        (_, name, parameters), part2 = split_list(tokens, get_token_name("=>"))
+                        return_type, action = parse_line(part2[:-1], line, data), part2[-1]
+                    elif len(split_list(tokens, get_token_name("=>"))[0]) == 4:
+                        (_, name, generics, parameters), part2 = split_list(tokens, get_token_name("=>"))
+                        return_type, action = parse_line(part2[:-1], line, data), part2[-1]
+                        
+                        assert_token_type(generics, "@square_brackets", error_msg = f"Error on line {line}")
+                        generics, generics_scope = token_value(generics)
+                        assert len(generics) == 1, f"Error on line {line}"
+                        generics = parse_line(generics[0], line, deepcopy(data), scope=generics_scope, a0=True)
+                        generic_collection = generics.collection if generics.type == "COLLECITON" else [generics]
                     
-                    return_type, action = parse_line(part2[:-1], line, data), part2[-1]
+                    assert_token_type(name, "@name", error_msg = f"Error on line {line}")
                     
-                    assert_token_type(name, "@name", error_msg="Error")
-                    
-                    assert_token_type(parameters, "@circle_brackets", error_msg="Error")
+                    assert_token_type(parameters, "@circle_brackets", error_msg = f"Error on line {line}")
                     parameters, param_scope = token_value(parameters)
                     assert len(parameters) == 1, f"Error on line {line}"
                     parameters = parameters[0]
                     
-                    assert_token_type(action, "@curly_brackets", error_msg="Error")
+                    assert_token_type(action, "@curly_brackets", error_msg = f"Error on line {line}")
                     
-                    data["functions"][token_value(name)] = code_value = eat("FUNCTION", code_lines, params=parse_line(parameters, line, deepcopy(data), scope=param_scope, parents=parents + [(code_value, return_type)], a0="FUNC"), return_type=return_type, data_type="FUNCTION")
+                    data["functions"][token_value(name)] = code_value = eat("FUNCTION", code_lines, return_type=return_type, data_type="FUNCTION")
                     
                     sub_data = deepcopy(data)
+                    
+                    if len(split_list(tokens, get_token_name("=>"))[0]) == 4:
+                        for g in generic_collection:
+                            sub_data["constants"][g.data["value"]] = eat("GENERIC", [], data_type="GENERIC")
                     
                     func_actions = []
                     action, action_scope = token_value(action)
                     for l, token in enumerate(action):
                         parse_line(token, line + l + 1, sub_data, func_actions, action_scope, parents=parents + [(code_value, return_type)])
                     
+                    code_value.data["params"] = parse_line(parameters, line, sub_data, scope=param_scope, parents=parents + [(code_value, return_type)], a0="FUNC")
                     code_value.data["action"] = func_actions
+                    code_value.data["scope"] = sub_data
             case "class":
-                _, name, donor, action = tokens
+                if len(tokens) == 4:
+                    _, name, donor, action = tokens
+                elif len(tokens) == 5:
+                    _, name, generics, donor, action = tokens
+                    
+                    assert_token_type(generics, "@square_brackets", error_msg = f"Error on line {line}")
+                    generics, generics_scope = token_value(generics)
+                    assert len(generics) == 1, f"Error on line {line}"
+                    generics = parse_line(generics[0], line, data, scope=generics_scope, a0=True)
+                    generic_collection = generics.collection if generics.type == "COLLECITON" else [generics]
                 
-                assert_token_type(name, "@name", error_msg="Error")
+                assert_token_type(name, "@name", error_msg = f"Error on line {line}")
                 
-                assert_token_type(donor, "@circle_brackets", error_msg="Error")
+                assert_token_type(donor, "@circle_brackets", error_msg = f"Error on line {line}")
                 donor, donor_scope = token_value(donor)
                 assert len(donor) <= 1, f"Error on line {line}"
                 donor = parse_line(donor[0], line, data, scope=donor_scope) if donor else None
                 
-                assert_token_type(action, "@curly_brackets", error_msg="Error")
+                assert_token_type(action, "@curly_brackets", error_msg = f"Error on line {line}")
                 
                 name = token_value(name)
                 
                 code_value = data["classes"][name] = eat("CLASS", code_lines, donor=donor, data_type="CLASS")
                 
                 sub_data = deepcopy(data)
+                
+                if len(tokens) == 5:
+                    for g in generic_collection:
+                        sub_data["constants"][g.data["value"]] = eat("GENERIC", [], data_type="GENERIC")
                 
                 class_actions = []
                 action, action_scope = token_value(action)
@@ -266,8 +303,8 @@ def parse_line(tokens: list[str], line: int, data: dict[str, dict[str, ParsedCod
             case "for":
                 _, conditions, action = tokens
                 
-                assert_token_type(conditions, "@circle_brackets", error_msg="Error")
-                assert_token_type(action, "@curly_brackets", error_msg="Error")
+                assert_token_type(conditions, "@circle_brackets", error_msg = f"Error on line {line}")
+                assert_token_type(action, "@curly_brackets", error_msg = f"Error on line {line}")
                 
                 sub_data = deepcopy(data)
                 
@@ -288,8 +325,8 @@ def parse_line(tokens: list[str], line: int, data: dict[str, dict[str, ParsedCod
                 (_, variables), part2 = split_list(tokens, get_token_name("in"))
                 collection, action = part2[:-1], part2[-1]
                 
-                assert_token_type(variables, "@circle_brackets", error_msg="Error")
-                assert_token_type(action, "@curly_brackets", error_msg="Error")
+                assert_token_type(variables, "@circle_brackets", error_msg = f"Error on line {line}")
+                assert_token_type(action, "@curly_brackets", error_msg = f"Error on line {line}")
                 
                 sub_data = deepcopy(data)
                 
@@ -308,8 +345,8 @@ def parse_line(tokens: list[str], line: int, data: dict[str, dict[str, ParsedCod
             case "while":
                 _, condition, action = tokens
                 
-                assert_token_type(condition, "@circle_brackets", error_msg="Error")
-                assert_token_type(action, "@curly_brackets", error_msg="Error")
+                assert_token_type(condition, "@circle_brackets", error_msg = f"Error on line {line}")
+                assert_token_type(action, "@curly_brackets", error_msg = f"Error on line {line}")
                 
                 sub_data = deepcopy(data)
                 
@@ -331,12 +368,12 @@ def parse_line(tokens: list[str], line: int, data: dict[str, dict[str, ParsedCod
                 
                 sub_data = deepcopy(data)
                 
-                assert_token_type(condition, "@circle_brackets", error_msg="Error")
+                assert_token_type(condition, "@circle_brackets", error_msg = f"Error on line {line}")
                 condition, condition_scope = token_value(condition)
                 assert len(condition) <= 1, f"Error on line {line}"
                 condition = parse_line(condition[0], line, sub_data, scope=condition_scope) if condition else None
                 
-                assert_token_type(action, "@curly_brackets", error_msg="Error")
+                assert_token_type(action, "@curly_brackets", error_msg = f"Error on line {line}")
                 
                 code_value = eat("IF", code_lines, condition=condition)
                 
@@ -353,12 +390,12 @@ def parse_line(tokens: list[str], line: int, data: dict[str, dict[str, ParsedCod
                 
                 sub_data = deepcopy(data)
                 
-                assert_token_type(condition, "cicle_brackets", error_msg="Error")
+                assert_token_type(condition, "cicle_brackets", error_msg = f"Error on line {line}")
                 condition, condition_scope = token_value(condition)
                 assert len(condition) == 1, f"Error on line {line}"
                 condition = parse_line(condition[0], line, sub_data, scope=condition_scope) if condition else None
                 
-                assert_token_type(action, "@curly_brackets", error_msg="Error")
+                assert_token_type(action, "@curly_brackets", error_msg = f"Error on line {line}")
                 
                 code_value = eat("ELSE-IF", code_lines, parent=code_lines[-1], condition=condition)
                 
@@ -373,7 +410,7 @@ def parse_line(tokens: list[str], line: int, data: dict[str, dict[str, ParsedCod
                 
                 _, action = tokens
                 
-                assert_token_type(action, "@curly_brackets", error_msg="Error")
+                assert_token_type(action, "@curly_brackets", error_msg = f"Error on line {line}")
                 
                 code_value = eat("ELSE", code_lines, parent=code_lines[-1])
                 
@@ -476,15 +513,35 @@ def parse_line(tokens: list[str], line: int, data: dict[str, dict[str, ParsedCod
             assert tokens[:square_brackets_end_index], f"Error on line {line}"
             
             index, index_scope = token_value(tokens[square_brackets_end_index])
-            assert len(index) <= 1, f"Error on line {line}"
-            index = parse_line(index[0], line, data, scope=index_scope) if index else None
+            assert len(index) == 1, f"Error on line {line}"
+            index = parse_line(index[0], line, data, scope=index_scope)
             
-            code_value = eat("INDEX", code_lines, collection=parse_line(tokens[:square_brackets_end_index], line, data), index=index)
+            collection = parse_line(tokens[:square_brackets_end_index], line, data)
+            
+            if collection.type in ("CLASS", "FUNCTION"):
+                if index.type == "COLLECTION":
+                    for v in index.collection:
+                        assert v.type in ("DEFINITION", "CONSTANTS", "FUNCTION", "CLASS"), f"Error on line {line}"
+                    
+                    values = index.data["collection"]
+                else:
+                    values = [index]
+                
+                collection = collection.copy()
+                
+                for i, v in enumerate(values):
+                    list(collection.data["scope"]["constants"].values())[i].update(v)
+                
+                code_value = collection
+            else:
+                assert index.data_type == data["classes"]["int"], f"Error on line {line}"
+                
+                code_value = collection[index.data["value"]] if index.name == "NUMBER-LIT" else eat("INDEX", code_lines, collection=collection, index=index)
     elif token_name_value is not None:
         if token_name_value in data["variables"]:
             code_value = data["variables"][token_name_value]
         elif token_name_value in data["constants"]:
-            code_value = data["variables"][token_name_value]
+            code_value = data["constants"][token_name_value]
         elif token_name_value in data["classes"]:
             code_value = data["classes"][token_name_value]
         elif token_name_value in data["functions"]:
@@ -533,9 +590,9 @@ def parse_line(tokens: list[str], line: int, data: dict[str, dict[str, ParsedCod
         if code_value is None:
             raise Exception(f"Error on line {line}")
         
-        code_value = eat("NUMBER", code_lines, value=code_value, data_type=(data["classes"]["int"] if is_int else data["classes"]["float"]))
+        code_value = eat("NUMBER-LIT", code_lines, value=code_value, data_type=(data["classes"]["int"] if is_int else data["classes"]["float"]))
     elif token_string_value is not None:
-        code_value = eat("STRING", code_lines, value=token_string_value, data_type=data["classes"]["string"])
+        code_value = eat("STRING-LIT", code_lines, value=token_string_value, data_type=data["classes"]["string"])
 
     SCOPE = prev_scope
     

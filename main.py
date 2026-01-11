@@ -12,6 +12,8 @@ class string() {
     }
 }
 
+class list[T] () {}
+
 func say(var data: string) => null {}
 
 get math;
@@ -24,7 +26,7 @@ x += 1;
 var name: string = "Ife is {x}";
 name.replace("f", "d");
 
-var data: list = ["hello", "he"];
+var data: list[string] = ["hello", "he"];
 
 forevery (var value: string) in data {
     say("{value} is a value that you cant do shit about it");
@@ -42,12 +44,13 @@ if (name == "ife" and x == 2) {
     say("{name} is ife and {x} is 2");
 }
 
-func Info(var name: string, var age: int, var accountBalance: float = 10.0) => null {
+func Info[T] (var name: string, var age: int, var accountBalance: float = 10.0) => null {
+    T;
     return say("{name} is {age} years old and has ${accountBalance} in his bank account");
 }
 
 func main(const args: list[string]) {
-    Info("Ife", 16);
+    Info[null]("Ife", 16);
 }
 """
 
