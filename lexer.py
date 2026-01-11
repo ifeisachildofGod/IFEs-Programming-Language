@@ -55,7 +55,7 @@ def _new_scope():
         "@circle_brackets": [],
         "@square_brackets": [],
 
-        "@name": [],
+        "@name": ["void", "null"],
         "@number": [],
     }
 
@@ -244,7 +244,7 @@ LANGUAGE_CONSTANTS = _post_process_constants({
         "break", "continue"
     ],
     "@specialwords": [
-        "in", "at"
+        "in", "as"
     ],
     "@operators": {
         "@arithmetic": {
@@ -339,7 +339,7 @@ def tokenize(code: str, scope: dict[str, list] | None = None):
     start_i = 0
     for i, c in enumerate(code):
         if continue_reading:
-            if not is_text and c.isalpha() or c == "_":
+            if not is_text and (c.isalpha() or c == "_"):
                 is_text = True
                 start_i = i
             elif not is_number and c.isnumeric():
@@ -369,10 +369,6 @@ def tokenize(code: str, scope: dict[str, list] | None = None):
                                 scope["@number"].append(v)
                         
                         p_holder = get_token_name(v, scope)
-                        
-                        if "name" not in p_holder and "number" not in p_holder:
-                            print(p_holder)
-                            print()
                     
                     replacement_data.insert(0, (value_slice, p_holder))
                     
