@@ -536,7 +536,7 @@ def parse_line(tokens: list[str], line: int, data: dict[str, dict[str, ParsedCod
             else:
                 assert index.data_type == data["classes"]["int"], f"Error on line {line}"
                 
-                code_value = collection[index.data["value"]] if index.name == "NUMBER-LIT" else eat("INDEX", code_lines, collection=collection, index=index)
+                code_value = eat("INDEX", code_lines, collection=collection, index=index)
     elif token_name_value is not None:
         if token_name_value in data["variables"]:
             code_value = data["variables"][token_name_value]
