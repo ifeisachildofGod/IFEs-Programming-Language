@@ -127,7 +127,7 @@ def _substitute_context(
             enclosements_indexes.append((prev_i, i))
             prev_i = None
         
-    for i, (start_index, end_index) in enumerate(reversed(enclosements_indexes)):
+    for start_index, end_index in reversed(enclosements_indexes):
         value = info_encoding_func(text[start_index + len(starter) : end_index])
         
         info_store.append(value)
@@ -238,7 +238,8 @@ LANGUAGE_CONSTANTS = _post_process_constants({
         "var", "const", "func", "class",
         "if", "elseif", "else",
         "for", "forevery", "while",
-        "get", "give", "return"
+        "module", "export", "using",
+        "return"
     ],
     "@loopstatments": [
         "break", "continue"
@@ -310,10 +311,11 @@ LANGUAGE_CONSTANTS = _post_process_constants({
 def tokenize(code: str, scope: dict[str, list] | None = None):
     scope = scope or _new_scope()
     
+    code = _substitute_strings(code, ["'", '"'], scope["@strings"], lambda i: f"`@strings?{i}`")
+    
     code = _substitute_context(code, "//", "\n", placeholder_func=lambda _: "", strict=False)
     code = _substitute_context(code, "/*", "*/", placeholder_func=lambda _: "", strict=False)
     
-    code = _substitute_strings(code, ["'", '"'], scope["@strings"], lambda i: f"`@strings?{i}`")
     code = _substitute_context(code, "{", "}", scope["@curly_brackets"], lambda i: f"{{@curly_brackets?{i}}};", lambda c: tokenize(c, scope))
     code = _substitute_context(code, "(", ")", scope["@circle_brackets"], lambda i: f"{{@circle_brackets?{i}}}", lambda c: tokenize(c, scope))
     code = _substitute_context(code, "[", "]", scope["@square_brackets"], lambda i: f"{{@square_brackets?{i}}}", lambda c: tokenize(c, scope))
@@ -321,7 +323,8 @@ def tokenize(code: str, scope: dict[str, list] | None = None):
     code = code.replace("`", "}")
     
     for i, s in enumerate(scope["@strings"]):
-        scope["@strings"][i] = (i, s)
+        if isinstance(scope["@strings"][i], str):
+            scope["@strings"][i] = (i, s)
     
     for operator in LANGUAGE_CONSTANTS["@operators"].values():
         for symbol in filter(lambda v: len(v.strip()) == 2, operator.values()):

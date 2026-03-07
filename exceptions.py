@@ -1,0 +1,3 @@
+
+class UnaccountedException(Exception):
+    pass

@@ -1,49 +1,31 @@
 # import os
+import sys
 
-from helpers import *
 from lexer import *
 from parser import *
+from linker import *
 
-test_code = """
-class list[class _T] () {}
-class string() {
-    func replace(var a: string, var b: string) => void {}
-}
 
-get test_module;
+PREPENSION = f"""
+using stdlib;
+class main(){"{"}
+"""
 
-func say(var data: string) => null {}
-
-var x: int = 2;
-var y: float = 1.1;
-
-x += 1;
-
-var name: string = "Ife is {x}";
-name.replace("f", "d");
-
-var data: list[string] = ["hello", "he"];
-
-forevery (var value: string) in data {
-    say("{value} is a value that you cant do shit about it");
-}
-
-while (1) {
-    break;
-}
-
-for (var i: int = 0; i += 1; i < 1) {
-    say(i);
-}
-
-if (name == "ife" and x == 2) {
-    say("{name} is ife and {x} is 2");
-}
-
-func main(const args: list[string]) {
-    Info("Ife", 16);
-}
+APPENSION = f"""
+{"}"}
 """
 
 
-print(*[p.type for p in parse_code(tokenize(test_code))], sep="\n\n")
+file_path = sys.argv[1]
+compile_path = file_path.removesuffix(".il") + ".py"
+
+with open(file_path) as file:
+    code = parse_code(tokenize(PREPENSION + file.read() + APPENSION))
+
+print("Compilation complete")
+
+with open(compile_path, "w") as file:
+    file.write(link(code, "py"))
+
+print(f'Code compiled to "{compile_path}"')
+
