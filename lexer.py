@@ -126,8 +126,10 @@ def _substitute_context(
         elif end_contition:
             enclosements_indexes.append((prev_i, i))
             prev_i = None
-        
-    for start_index, end_index in reversed(enclosements_indexes):
+    
+    enclosements_indexes.reverse()
+    
+    for start_index, end_index in enclosements_indexes:
         value = info_encoding_func(text[start_index + len(starter) : end_index])
         
         info_store.append(value)

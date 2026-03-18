@@ -134,7 +134,7 @@ def link(code: list[ParsedCode], fmt: Literal["py", "c"], l_proc: Callable[[list
         
         P_FUNTIONS[k] = value
     
-    l_proc = l_proc or (lambda l: "\n".join(l))
+    l_proc = l_proc or (lambda l: l)
     
     return l_proc([_link(p_code) for p_code in code])
 
